@@ -223,24 +223,51 @@
             let draggedPieceIndex = null;
             let availablePieces = [];
 
-            // Tetrominoes
+            // Tetrominoes and additional shapes
             const SHAPES = [
-                [[0,0,0,0], [1,1,1,1], [0,0,0,0], [0,0,0,0]], // I
-                [[1,1], [1,1]], // O
-                [[0,1,0], [1,1,1], [0,0,0]], // T
-                [[1,0,0], [1,1,1], [0,0,0]], // J
-                [[0,0,1], [1,1,1], [0,0,0]], // L
-                [[0,1,1], [1,1,0], [0,0,0]], // S
-                [[1,1,0], [0,1,1], [0,0,0]], // Z
-                [[1]], // Single block
-                [[1,1,1]], // Three in a row
-                [[1,1]] // Two in a row
+                [[0,0,0,0], [1,1,1,1], [0,0,0,0], [0,0,0,0]], // I (4x1)
+                [[1,1], [1,1]], // O (2x2)
+                [[0,1,0], [1,1,1], [0,0,0]], // T (3x3)
+                [[1,0,0], [1,1,1], [0,0,0]], // J (3x3)
+                [[0,0,1], [1,1,1], [0,0,0]], // L (3x3)
+                [[0,1,1], [1,1,0], [0,0,0]], // S (3x3)
+                [[1,1,0], [0,1,1], [0,0,0]], // Z (3x3)
+                [[1]], // Single block (1x1)
+                [[1,1,1]], // Three in a row (3x1)
+                [[1,1]], // Two in a row (2x1)
+                [[1,0], [1,0], [1,1]], // Corner piece (2x3)
+                [[0,1], [0,1], [1,1]], // Corner piece (2x3)
+                [[1,1,1,1,1]], // Five in a row (5x1)
+                [[1,1,1], [0,1,0]], // T with tail (3x2)
+                [[1,1,1,1], [0,0,0,1]], // L long (4x2)
+                [[1,0,0], [1,0,0], [1,1,1]], // Big J (3x3)
+                [[1,1], [1,0], [1,0]], // Small L (2x3)
+                [[1,1,1], [1,0,0], [1,0,0]], // Big J variant (3x3)
+                [[1,1,1,1], [1,0,0,0]], // Long L (4x2)
+                [[1,1,0], [0,1,1], [0,0,1]], // Diagonal (3x3)
+                [[0,0,1], [0,1,1], [1,1,0]], // Diagonal reverse (3x3)
+                [[1,1,1], [1,1,1]], // 3x2 block
+                [[1,1], [1,1], [1,1]], // 2x3 block
+                [[1,1,1,1,1,1]], // Six in a row (6x1)
+                [[1,0,1], [1,1,1]], // U shape (3x2)
+                [[1,1,1], [1,0,1]], // C shape (3x2)
+                [[1,1,1,1], [0,1,0,0]], // L with tail (4x2)
+                [[1,0,0,0], [1,1,1,1]], // Reverse L with tail (4x2)
+                [[1,1,1,1,1,1,1]], // Seven in a row (7x1)
+                [[1,1,1,1,1,1,1,1]], // Eight in a row (8x1)
+                [[1,1,1,1,1,1,1,1,1,1]], // Ten in a row (10x1)
+                [[1,1,1,1,1,1,1,1,1,1,1,1]], // Twelve in a row (12x1)
             ];
 
             const COLORS = [
                 '#00FFFF', '#FFFF00', '#FF00FF', '#0000FF', 
                 '#FFA500', '#00FF00', '#FF0000', '#FFFFFF',
-                '#FF00FF', '#00FF99'
+                '#FF00FF', '#00FF99', '#FF9900', '#9900FF',
+                '#00CCFF', '#FFCC00', '#CC00FF', '#00FFCC',
+                '#FF0066', '#66FF00', '#0066FF', '#FF6600',
+                '#33FF33', '#FF33FF', '#33FFFF', '#FFFF33',
+                '#FF3333', '#3333FF', '#33FF99', '#FF9933',
+                '#3399FF', '#FF3399', '#99FF33', '#33FFCC'
             ];
 
             function createBoard() {
@@ -277,7 +304,19 @@
             }
 
             function generateNewPieces() {
-                availablePieces = Array.from({length: 3}, () => getRandomPiece());
+                // First try to generate pieces that can fit
+                availablePieces = [];
+                
+                for (let i = 0; i < 3; i++) {
+                    const fittingPiece = findFittingPiece();
+                    if (fittingPiece) {
+                        availablePieces.push(fittingPiece);
+                    } else {
+                        // If no fitting piece found, generate random one
+                        availablePieces.push(getRandomPiece());
+                    }
+                }
+                
                 drawAvailablePieces();
                 currentPiece = null;
                 
@@ -290,9 +329,120 @@
                 return true;
             }
 
+            function findFittingPiece() {
+                // Try to find a piece that can fit in the current board
+                const emptySpots = findEmptySpots();
+                if (emptySpots.length === 0) return null;
+                
+                // Try different shapes that might fit
+                const potentialPieces = [];
+                
+                // Check single blocks first
+                if (emptySpots.length > 0) {
+                    potentialPieces.push({
+                        shape: [[1]],
+                        color: COLORS[7], // White for single blocks
+                        index: 7
+                    });
+                }
+                
+                // Check for horizontal lines
+                for (let len = 2; len <= 5; len++) {
+                    for (let y = 0; y < ROWS; y++) {
+                        for (let x = 0; x <= COLS - len; x++) {
+                            let canFit = true;
+                            for (let i = 0; i < len; i++) {
+                                if (board[y][x + i] !== EMPTY) {
+                                    canFit = false;
+                                    break;
+                                }
+                            }
+                            if (canFit) {
+                                const shape = [Array(len).fill(1)];
+                                potentialPieces.push({
+                                    shape: shape,
+                                    color: COLORS[len % COLORS.length],
+                                    index: len + 7
+                                });
+                            }
+                        }
+                    }
+                }
+                
+                // Check for vertical lines
+                for (let len = 2; len <= 5; len++) {
+                    for (let x = 0; x < COLS; x++) {
+                        for (let y = 0; y <= ROWS - len; y++) {
+                            let canFit = true;
+                            for (let i = 0; i < len; i++) {
+                                if (board[y + i][x] !== EMPTY) {
+                                    canFit = false;
+                                    break;
+                                }
+                            }
+                            if (canFit) {
+                                const shape = Array(len).fill().map(() => [1]);
+                                potentialPieces.push({
+                                    shape: shape,
+                                    color: COLORS[(len + 5) % COLORS.length],
+                                    index: len + 12
+                                });
+                            }
+                        }
+                    }
+                }
+                
+                // Check for small squares
+                for (let size = 2; size <= 3; size++) {
+                    for (let y = 0; y <= ROWS - size; y++) {
+                        for (let x = 0; x <= COLS - size; x++) {
+                            let canFit = true;
+                            for (let dy = 0; dy < size; dy++) {
+                                for (let dx = 0; dx < size; dx++) {
+                                    if (board[y + dy][x + dx] !== EMPTY) {
+                                        canFit = false;
+                                        break;
+                                    }
+                                }
+                                if (!canFit) break;
+                            }
+                            if (canFit) {
+                                const shape = Array(size).fill().map(() => Array(size).fill(1));
+                                potentialPieces.push({
+                                    shape: shape,
+                                    color: COLORS[(size + 10) % COLORS.length],
+                                    index: size + 15
+                                });
+                            }
+                        }
+                    }
+                }
+                
+                // If we found potential pieces, return a random one
+                if (potentialPieces.length > 0) {
+                    return potentialPieces[Math.floor(Math.random() * potentialPieces.length)];
+                }
+                
+                return null;
+            }
+
+            function findEmptySpots() {
+                const spots = [];
+                for (let y = 0; y < ROWS; y++) {
+                    for (let x = 0; x < COLS; x++) {
+                        if (board[y][x] === EMPTY) {
+                            spots.push({x, y});
+                        }
+                    }
+                }
+                return spots;
+            }
+
             function canAnyPieceFit() {
                 for (let i = 0; i < availablePieces.length; i++) {
                     const piece = availablePieces[i];
+                    if (!piece) continue;
+                    
                     const rotations = getAllRotations(piece.shape);
                     
                     for (const rotatedShape of rotations) {
