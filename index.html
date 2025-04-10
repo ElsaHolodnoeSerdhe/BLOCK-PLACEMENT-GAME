@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>BLOCK PLACEMENT GAME</title>
     <style>
         body {
@@ -11,11 +11,12 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
-            background-color: #000;
+            min-height: 100vh;
+            background-color: #111;
             font-family: 'Courier New', monospace;
             color: #0f0;
             overflow: hidden;
+            touch-action: manipulation;
         }
         
         #game-container {
@@ -23,22 +24,24 @@
             border: 4px solid #0f0;
             padding: 10px;
             background-color: #000;
-            box-shadow: 0 0 10px #0f0;
-            width: 500px;
+            box-shadow: 0 0 15px #0f0;
+            width: 100%;
+            max-width: 500px;
         }
         
         #game-board {
             position: relative;
             border: 2px solid #0f0;
             background-color: #000;
-            width: 400px;
-            height: 200px;
+            width: 100%;
+            height: auto;
+            aspect-ratio: 2 / 1;
         }
         
         canvas {
             display: block;
-            width: 400px;
-            height: 200px;
+            width: 100%;
+            height: 100%;
             image-rendering: pixelated;
         }
         
@@ -54,20 +57,27 @@
         #controls {
             margin-top: 10px;
             text-align: center;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 5px;
         }
         
         button {
             background-color: #000;
             color: #0f0;
             border: 1px solid #0f0;
-            padding: 5px 10px;
-            margin: 0 3px;
+            padding: 8px 12px;
+            margin: 0;
             font-family: 'Courier New', monospace;
-            font-size: 12px;
+            font-size: 14px;
             cursor: pointer;
+            min-width: 80px;
+            flex-grow: 1;
+            transition: all 0.2s;
         }
         
-        button:hover {
+        button:hover, button:active {
             background-color: #0f0;
             color: #000;
         }
@@ -95,35 +105,46 @@
         
         .piece-container {
             position: relative;
-            width: 50px;
-            height: 50px;
+            width: 20%;
+            max-width: 50px;
+            aspect-ratio: 1 / 1;
             border: 1px solid #0f0;
-            cursor: pointer;
+            cursor: grab;
         }
         
         .piece-canvas {
             width: 100%;
             height: 100%;
             image-rendering: pixelated;
+            pointer-events: none;
         }
         
         #message {
             text-align: center;
             margin: 5px 0;
-            font-size: 12px;
+            font-size: 14px;
             min-height: 18px;
+            color: #0f0;
         }
         
         #mode-toggle {
             margin-top: 10px;
             text-align: center;
         }
+        
+        .piece-ghost {
+            position: absolute;
+            opacity: 0.7;
+            z-index: 100;
+            pointer-events: none;
+            border: 2px dashed #0f0;
+        }
     </style>
 </head>
 <body>
     <div id="game-container">
         <div id="game-board">
-            <canvas id="canvas" width="400" height="200"></canvas>
+            <canvas id="canvas"></canvas>
             <div id="game-over">GAME OVER</div>
         </div>
         <div id="info-panel">
@@ -131,21 +152,20 @@
             <div>PCS: <span id="pieces">00</span></div>
         </div>
         <div id="pieces-panel">
-            <div class="piece-container" id="piece1">
-                <canvas class="piece-canvas" width="50" height="50"></canvas>
+            <div class="piece-container" id="piece1" draggable="true">
+                <canvas class="piece-canvas"></canvas>
             </div>
-            <div class="piece-container" id="piece2">
-                <canvas class="piece-canvas" width="50" height="50"></canvas>
+            <div class="piece-container" id="piece2" draggable="true">
+                <canvas class="piece-canvas"></canvas>
             </div>
-            <div class="piece-container" id="piece3">
-                <canvas class="piece-canvas" width="50" height="50"></canvas>
+            <div class="piece-container" id="piece3" draggable="true">
+                <canvas class="piece-canvas"></canvas>
             </div>
         </div>
-        <div id="message">Select a piece and place it</div>
+        <div id="message">Drag and drop pieces anywhere vertically</div>
         <div id="controls">
             <button id="start-btn">START</button>
             <button id="reset-btn">RESET</button>
-            <button id="rotate-btn">ROTATE</button>
         </div>
         <div id="mode-toggle">
             <button id="mode-btn">CLASSIC MODE</button>
@@ -162,39 +182,45 @@
             const messageDisplay = document.getElementById('message');
             const startBtn = document.getElementById('start-btn');
             const resetBtn = document.getElementById('reset-btn');
-            const rotateBtn = document.getElementById('rotate-btn');
             const modeBtn = document.getElementById('mode-btn');
             const pieceContainers = [
                 document.getElementById('piece1'),
                 document.getElementById('piece2'),
                 document.getElementById('piece3')
             ];
-            const pieceCanvases = [
-                pieceContainers[0].querySelector('.piece-canvas'),
-                pieceContainers[1].querySelector('.piece-canvas'),
-                pieceContainers[2].querySelector('.piece-canvas')
-            ];
-            const pieceCtxs = pieceCanvases.map(canvas => canvas.getContext('2d'));
-
+            
             // Game settings
             const COLS = 20;
             const ROWS = 10;
-            const BLOCK_SIZE = 20;
+            let BLOCK_SIZE = Math.min(window.innerWidth * 0.8 / COLS, 30);
             const EMPTY = '#000000';
-            const PIECE_SIZE = 12;
+
+            // Set canvas size
+            canvas.width = COLS * BLOCK_SIZE;
+            canvas.height = ROWS * BLOCK_SIZE;
+            
+            // Set piece canvases size
+            pieceContainers.forEach(container => {
+                const canvas = container.querySelector('.piece-canvas');
+                canvas.width = container.offsetWidth;
+                canvas.height = container.offsetHeight;
+            });
+            
+            const pieceCanvases = pieceContainers.map(c => c.querySelector('.piece-canvas'));
+            const pieceCtxs = pieceCanvases.map(c => c.getContext('2d'));
 
             // Game state
             let board = createBoard();
             let score = 0;
             let piecesPlaced = 0;
-            let selectedPiece = null;
             let currentPiece = null;
             let gameOver = false;
             let gameStarted = false;
             let combo = 0;
             let puzzleMode = false;
-
-            // Available pieces for selection
+            let isDragging = false;
+            let ghostElement = null;
+            let draggedPieceIndex = null;
             let availablePieces = [];
 
             // Tetrominoes
@@ -218,44 +244,41 @@
             ];
 
             function createBoard() {
-                return Array.from(Array(ROWS), () => Array(COLS).fill(EMPTY));
+                return Array.from({length: ROWS}, () => Array(COLS).fill(EMPTY));
             }
 
             function initializePuzzleBoard() {
                 const newBoard = createBoard();
-                // Place some random single blocks
-                const blocksToPlace = Math.floor(Math.random() * 15) + 10; // 10-24 blocks
-                const colors = ['#555', '#666', '#777', '#888', '#999', '#AAA'];
+                const blocksToPlace = Math.floor(Math.random() * 15) + 10;
                 
                 for (let i = 0; i < blocksToPlace; i++) {
-                    const x = Math.floor(Math.random() * COLS);
-                    const y = Math.floor(Math.random() * ROWS);
-                    const color = colors[Math.floor(Math.random() * colors.length)];
-                    newBoard[y][x] = color;
+                    const piece = getRandomPiece();
+                    const x = Math.floor(Math.random() * (COLS - piece.shape[0].length + 1));
+                    const y = Math.floor(Math.random() * (ROWS - piece.shape.length + 1));
+                    
+                    for (let row = 0; row < piece.shape.length; row++) {
+                        for (let col = 0; col < piece.shape[row].length; col++) {
+                            if (piece.shape[row][col] && y + row < ROWS && x + col < COLS) {
+                                newBoard[y + row][x + col] = piece.color;
+                            }
+                        }
+                    }
                 }
-                
                 return newBoard;
             }
 
             function getRandomPiece() {
-                // In puzzle mode, prefer larger pieces (first 7 Tetromino shapes)
-                const maxShapes = puzzleMode ? 7 : SHAPES.length;
-                const pieceType = Math.floor(Math.random() * maxShapes);
+                const pieceType = Math.floor(Math.random() * SHAPES.length);
                 return {
                     shape: SHAPES[pieceType],
-                    color: COLORS[pieceType % COLORS.length]
+                    color: COLORS[pieceType % COLORS.length],
+                    index: pieceType
                 };
             }
 
             function generateNewPieces() {
-                availablePieces = [
-                    getRandomPiece(),
-                    getRandomPiece(),
-                    getRandomPiece()
-                ];
-                
+                availablePieces = Array.from({length: 3}, () => getRandomPiece());
                 drawAvailablePieces();
-                selectedPiece = null;
                 currentPiece = null;
                 
                 if (!canAnyPieceFit()) {
@@ -264,15 +287,16 @@
                     messageDisplay.textContent = "No more moves!";
                     return false;
                 }
-                
                 return true;
             }
 
             function canAnyPieceFit() {
-                for (const piece of availablePieces) {
+                for (let i = 0; i < availablePieces.length; i++) {
+                    const piece = availablePieces[i];
                     const rotations = getAllRotations(piece.shape);
+                    
                     for (const rotatedShape of rotations) {
-                        for (let y = 0; y <= ROWS - rotatedShape.length; y++) {
+                        for (let y = -rotatedShape.length + 1; y < ROWS; y++) {
                             for (let x = 0; x <= COLS - rotatedShape[0].length; x++) {
                                 if (!checkCollisionWithBoard(rotatedShape, x, y)) {
                                     return true;
@@ -285,67 +309,58 @@
             }
 
             function getAllRotations(shape) {
-                const rotations = [shape];
-                
-                // Don't rotate single blocks or lines
                 if (shape.length === 1 || shape[0].length === 1 || shape.length !== shape[0].length) {
-                    return rotations;
+                    return [shape];
                 }
                 
-                const rotated90 = shape[0].map((_, i) => 
-                    shape.map(row => row[i]).reverse()
-                );
-                rotations.push(rotated90);
+                const rotated90 = shape[0].map((_, i) => shape.map(row => row[i]).reverse());
+                const rotated180 = rotated90[0].map((_, i) => rotated90.map(row => row[i]).reverse());
+                const rotated270 = rotated180[0].map((_, i) => rotated180.map(row => row[i]).reverse());
                 
-                const rotated180 = rotated90[0].map((_, i) => 
-                    rotated90.map(row => row[i]).reverse()
-                );
-                rotations.push(rotated180);
-                
-                const rotated270 = rotated180[0].map((_, i) => 
-                    rotated180.map(row => row[i]).reverse()
-                );
-                rotations.push(rotated270);
-                
-                return rotations;
+                return [shape, rotated90, rotated180, rotated270];
             }
 
             function drawAvailablePieces() {
-                for (let i = 0; i < 3; i++) {
-                    const piece = availablePieces[i];
-                    pieceCtxs[i].clearRect(0, 0, 50, 50);
+                pieceContainers.forEach((container, i) => {
+                    pieceCtxs[i].clearRect(0, 0, pieceCanvases[i].width, pieceCanvases[i].height);
                     
-                    if (piece) {
-                        const shape = piece.shape;
-                        const color = piece.color;
-                        
-                        const offsetX = (50 - shape[0].length * PIECE_SIZE) / 2;
-                        const offsetY = (50 - shape.length * PIECE_SIZE) / 2;
-                        
-                        for (let y = 0; y < shape.length; y++) {
-                            for (let x = 0; x < shape[y].length; x++) {
-                                if (shape[y][x]) {
-                                    pieceCtxs[i].fillStyle = color;
-                                    pieceCtxs[i].fillRect(
-                                        offsetX + x * PIECE_SIZE + 1,
-                                        offsetY + y * PIECE_SIZE + 1,
-                                        PIECE_SIZE - 2,
-                                        PIECE_SIZE - 2
-                                    );
-                                    
-                                    pieceCtxs[i].strokeStyle = '#000';
-                                    pieceCtxs[i].lineWidth = 1;
-                                    pieceCtxs[i].strokeRect(
-                                        offsetX + x * PIECE_SIZE + 1,
-                                        offsetY + y * PIECE_SIZE + 1,
-                                        PIECE_SIZE - 2,
-                                        PIECE_SIZE - 2
-                                    );
-                                }
+                    if (!availablePieces[i]) {
+                        container.style.visibility = 'hidden';
+                        return;
+                    }
+                    
+                    container.style.visibility = 'visible';
+                    const {shape, color} = availablePieces[i];
+                    const blockSize = Math.min(
+                        pieceCanvases[i].width / shape[0].length,
+                        pieceCanvases[i].height / shape.length,
+                        20
+                    );
+                    
+                    const offsetX = (pieceCanvases[i].width - shape[0].length * blockSize) / 2;
+                    const offsetY = (pieceCanvases[i].height - shape.length * blockSize) / 2;
+                    
+                    for (let y = 0; y < shape.length; y++) {
+                        for (let x = 0; x < shape[y].length; x++) {
+                            if (shape[y][x]) {
+                                pieceCtxs[i].fillStyle = color;
+                                pieceCtxs[i].fillRect(
+                                    offsetX + x * blockSize + 1,
+                                    offsetY + y * blockSize + 1,
+                                    blockSize - 2,
+                                    blockSize - 2
+                                );
+                                pieceCtxs[i].strokeStyle = '#000';
+                                pieceCtxs[i].strokeRect(
+                                    offsetX + x * blockSize + 1,
+                                    offsetY + y * blockSize + 1,
+                                    blockSize - 2,
+                                    blockSize - 2
+                                );
                             }
                         }
                     }
-                }
+                });
             }
 
             function draw() {
@@ -368,6 +383,7 @@
                     ctx.stroke();
                 }
 
+                // Draw blocks
                 for (let y = 0; y < ROWS; y++) {
                     for (let x = 0; x < COLS; x++) {
                         if (board[y][x] !== EMPTY) {
@@ -376,26 +392,23 @@
                     }
                 }
 
-                if (currentPiece) {
+                // Draw current piece
+                if (currentPiece && isDragging) {
                     drawPiece(currentPiece);
                 }
             }
 
             function drawPiece(piece) {
-                const shape = piece.shape;
-                const color = piece.color;
-                const pos = piece.pos;
-                
+                const {shape, color, pos} = piece;
                 if (!pos) return;
                 
                 for (let y = 0; y < shape.length; y++) {
                     for (let x = 0; x < shape[y].length; x++) {
                         if (shape[y][x]) {
-                            drawBlock(
-                                pos.x + x,
-                                pos.y + y,
-                                color
-                            );
+                            const drawY = pos.y + y;
+                            if (drawY >= 0 && drawY < ROWS) {
+                                drawBlock(pos.x + x, drawY, color);
+                            }
                         }
                     }
                 }
@@ -403,14 +416,9 @@
 
             function drawBlock(x, y, color) {
                 ctx.fillStyle = color;
-                ctx.fillRect(
-                    x * BLOCK_SIZE,
-                    y * BLOCK_SIZE,
-                    BLOCK_SIZE,
-                    BLOCK_SIZE
-                );
+                ctx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
                 
-                // Light border on top and left
+                // Light border
                 ctx.strokeStyle = '#FFF';
                 ctx.lineWidth = 1;
                 ctx.beginPath();
@@ -419,7 +427,7 @@
                 ctx.lineTo((x + 1) * BLOCK_SIZE, (y + 1) * BLOCK_SIZE);
                 ctx.stroke();
                 
-                // Dark border on bottom and right
+                // Dark border
                 ctx.strokeStyle = '#888';
                 ctx.beginPath();
                 ctx.moveTo((x + 1) * BLOCK_SIZE, (y + 1) * BLOCK_SIZE);
@@ -428,106 +436,48 @@
                 ctx.stroke();
             }
 
-            function selectPiece(index) {
-                if (!gameStarted || gameOver || !availablePieces[index]) return;
+            function createGhostElement(piece, x, y) {
+                if (ghostElement) document.body.removeChild(ghostElement);
                 
-                selectedPiece = index;
-                currentPiece = {
-                    shape: availablePieces[index].shape,
-                    color: availablePieces[index].color,
-                    pos: {x: Math.floor(COLS / 2), y: 0}
+                ghostElement = document.createElement('div');
+                ghostElement.className = 'piece-ghost';
+                const size = BLOCK_SIZE * 1.5;
+                
+                ghostElement.style.width = `${piece.shape[0].length * size}px`;
+                ghostElement.style.height = `${piece.shape.length * size}px`;
+                ghostElement.style.background = piece.color;
+                ghostElement.style.left = `${x - (piece.shape[0].length * size / 2)}px`;
+                ghostElement.style.top = `${y - (piece.shape.length * size / 2)}px`;
+                ghostElement.style.border = '2px dashed #0f0';
+                
+                document.body.appendChild(ghostElement);
+            }
+
+            function placePiece(x, y) {
+                if (!isDragging || !currentPiece) return;
+                
+                const rect = canvas.getBoundingClientRect();
+                const gridX = Math.floor((x - rect.left) / BLOCK_SIZE);
+                const gridY = Math.floor((y - rect.top) / BLOCK_SIZE);
+                
+                // Constrain both horizontally and vertically
+                const maxX = COLS - currentPiece.shape[0].length;
+                const minY = -currentPiece.shape.length + 1;
+                const maxY = ROWS - 1;
+                
+                currentPiece.pos = {
+                    x: Math.max(0, Math.min(gridX, maxX)),
+                    y: Math.max(minY, Math.min(gridY, maxY))
                 };
                 
-                centerPiece();
-                
-                for (let i = 0; i < pieceContainers.length; i++) {
-                    pieceContainers[i].style.borderColor = i === index ? '#ff0' : '#0f0';
-                }
-                
-                messageDisplay.textContent = "Place the piece with mouse or arrows";
-            }
-
-            function centerPiece() {
-                if (!currentPiece) return;
-                
-                currentPiece.pos.x = Math.floor(COLS / 2) - Math.floor(currentPiece.shape[0].length / 2);
-                currentPiece.pos.y = 0;
-                
                 if (checkCollision()) {
-                    for (let y = 0; y <= ROWS - currentPiece.shape.length; y++) {
-                        for (let x = 0; x <= COLS - currentPiece.shape[0].length; x++) {
-                            if (!checkCollisionWithBoard(currentPiece.shape, x, y)) {
-                                currentPiece.pos.x = x;
-                                currentPiece.pos.y = y;
-                                return;
-                            }
-                        }
-                    }
-                    
-                    currentPiece = null;
-                    selectedPiece = null;
-                    messageDisplay.textContent = "No space for this piece!";
-                    
-                    for (let i = 0; i < pieceContainers.length; i++) {
-                        pieceContainers[i].style.borderColor = '#0f0';
-                    }
-                }
-            }
-
-            function movePiece(direction) {
-                if (!currentPiece) return;
-                
-                const newX = currentPiece.pos.x + direction;
-                if (!checkCollisionWithBoard(currentPiece.shape, newX, currentPiece.pos.y)) {
-                    currentPiece.pos.x = newX;
-                    draw();
-                }
-            }
-
-            function moveDown() {
-                if (!currentPiece) return;
-                
-                const newY = currentPiece.pos.y + 1;
-                if (!checkCollisionWithBoard(currentPiece.shape, currentPiece.pos.x, newY)) {
-                    currentPiece.pos.y = newY;
-                    draw();
-                    return false;
-                } else {
-                    placePiece();
-                    return true;
-                }
-            }
-
-            function rotatePiece() {
-                if (!currentPiece) return;
-                
-                // Don't rotate single blocks or lines
-                if (currentPiece.shape.length === 1 || currentPiece.shape[0].length === 1) {
+                    messageDisplay.textContent = "Can't place here!";
                     return;
                 }
                 
-                const originalShape = currentPiece.shape;
-                const rotated = currentPiece.shape[0].map((_, i) => 
-                    currentPiece.shape.map(row => row[i]).reverse()
-                );
-                
-                const offsets = [0, 1, -1, 2, -2];
-                for (const offset of offsets) {
-                    if (!checkCollisionWithBoard(rotated, currentPiece.pos.x + offset, currentPiece.pos.y)) {
-                        currentPiece.shape = rotated;
-                        currentPiece.pos.x += offset;
-                        draw();
-                        return;
-                    }
-                }
-            }
-
-            function placePiece() {
-                if (!currentPiece) return;
-                
                 lockPiece();
                 score += 100;
-                availablePieces[selectedPiece] = null;
+                availablePieces[draggedPieceIndex] = null;
                 
                 const linesCleared = clearLines();
                 if (linesCleared > 0) {
@@ -546,18 +496,21 @@
                 piecesPlaced++;
                 updateDisplay();
                 
-                if (availablePieces.every(piece => piece === null)) {
+                if (ghostElement) {
+                    document.body.removeChild(ghostElement);
+                    ghostElement = null;
+                }
+                
+                isDragging = false;
+                currentPiece = null;
+                draggedPieceIndex = null;
+                
+                drawAvailablePieces();
+                draw();
+                
+                if (availablePieces.every(p => p === null)) {
                     if (!generateNewPieces()) return;
                 }
-                
-                currentPiece = null;
-                selectedPiece = null;
-                
-                for (let i = 0; i < pieceContainers.length; i++) {
-                    pieceContainers[i].style.borderColor = '#0f0';
-                }
-                
-                draw();
             }
 
             function checkCollision() {
@@ -571,12 +524,13 @@
                             const boardX = x + col;
                             const boardY = y + row;
                             
-                            if (
-                                boardX < 0 || 
-                                boardX >= COLS || 
-                                boardY >= ROWS ||
-                                (boardY >= 0 && board[boardY][boardX] !== EMPTY)
-                            ) {
+                            // Check all boundaries
+                            if (boardX < 0 || boardX >= COLS || boardY >= ROWS || boardY < 0) {
+                                return true;
+                            }
+                            
+                            // Check collisions only for blocks inside the board
+                            if (boardY >= 0 && board[boardY][boardX] !== EMPTY) {
                                 return true;
                             }
                         }
@@ -591,7 +545,9 @@
                         if (currentPiece.shape[row][col]) {
                             const boardY = currentPiece.pos.y + row;
                             const boardX = currentPiece.pos.x + col;
-                            if (boardY >= 0) {
+                            
+                            // Lock only blocks that are inside the board
+                            if (boardY >= 0 && boardY < ROWS && boardX >= 0 && boardX < COLS) {
                                 board[boardY][boardX] = currentPiece.color;
                             }
                         }
@@ -610,19 +566,11 @@
                         y++;
                     }
                 }
-                
                 return linesCleared;
             }
 
             function isBoardEmpty(board) {
-                for (let y = 0; y < ROWS; y++) {
-                    for (let x = 0; x < COLS; x++) {
-                        if (board[y][x] !== EMPTY) {
-                            return false;
-                        }
-                    }
-                }
-                return true;
+                return board.every(row => row.every(cell => cell === EMPTY));
             }
 
             function updateDisplay() {
@@ -640,16 +588,12 @@
                 piecesPlaced = 0;
                 combo = 0;
                 
-                if (puzzleMode) {
-                    board = initializePuzzleBoard();
-                } else {
-                    board = createBoard();
-                }
-                
+                board = puzzleMode ? initializePuzzleBoard() : createBoard();
                 updateDisplay();
-                
                 generateNewPieces();
-                messageDisplay.textContent = "Select a piece and place it";
+                messageDisplay.textContent = puzzleMode 
+                    ? "Puzzle Mode: Fill the board" 
+                    : "Classic Mode: Colorful pieces";
                 draw();
             }
 
@@ -658,101 +602,170 @@
                 gameOver = false;
                 gameOverDisplay.style.display = 'none';
                 
-                if (puzzleMode) {
-                    board = initializePuzzleBoard();
-                } else {
-                    board = createBoard();
-                }
-                
+                board = puzzleMode ? initializePuzzleBoard() : createBoard();
                 score = 0;
                 piecesPlaced = 0;
                 combo = 0;
-                
-                selectedPiece = null;
                 currentPiece = null;
+                isDragging = false;
                 
-                for (let i = 0; i < pieceContainers.length; i++) {
-                    pieceContainers[i].style.borderColor = '#0f0';
+                if (ghostElement) {
+                    document.body.removeChild(ghostElement);
+                    ghostElement = null;
                 }
                 
                 updateDisplay();
                 messageDisplay.textContent = "Press START to begin";
+                generateNewPieces();
                 draw();
             }
 
             function toggleMode() {
                 puzzleMode = !puzzleMode;
                 modeBtn.textContent = puzzleMode ? "PUZZLE MODE" : "CLASSIC MODE";
+                messageDisplay.textContent = puzzleMode 
+                    ? "Puzzle Mode: Fill the board" 
+                    : "Classic Mode: Colorful pieces";
                 resetGame();
+            }
+
+            function handleResize() {
+                const newBlockSize = Math.min(window.innerWidth * 0.8 / COLS, 30);
+                
+                if (newBlockSize !== BLOCK_SIZE) {
+                    BLOCK_SIZE = newBlockSize;
+                    canvas.width = COLS * BLOCK_SIZE;
+                    canvas.height = ROWS * BLOCK_SIZE;
+                    
+                    pieceContainers.forEach(container => {
+                        const canvas = container.querySelector('.piece-canvas');
+                        canvas.width = container.offsetWidth;
+                        canvas.height = container.offsetHeight;
+                    });
+                    
+                    draw();
+                    drawAvailablePieces();
+                }
             }
 
             function addEventListeners() {
                 startBtn.addEventListener('click', startGame);
                 resetBtn.addEventListener('click', resetGame);
-                rotateBtn.addEventListener('click', rotatePiece);
                 modeBtn.addEventListener('click', toggleMode);
 
+                // Drag and drop
                 pieceContainers.forEach((container, index) => {
-                    container.addEventListener('click', () => {
-                        if (availablePieces[index]) {
-                            selectPiece(index);
+                    container.addEventListener('dragstart', (e) => {
+                        if (!gameStarted || gameOver || !availablePieces[index]) {
+                            e.preventDefault();
+                            return;
+                        }
+                        
+                        draggedPieceIndex = index;
+                        currentPiece = {
+                            shape: availablePieces[index].shape,
+                            color: availablePieces[index].color,
+                            pos: {x: 0, y: 0}
+                        };
+                        
+                        isDragging = true;
+                        e.dataTransfer.setData('text/plain', index);
+                        e.dataTransfer.effectAllowed = 'copy';
+                        createGhostElement(currentPiece, e.clientX, e.clientY);
+                    });
+                    
+                    container.addEventListener('drag', (e) => {
+                        if (isDragging && ghostElement) {
+                            ghostElement.style.left = `${e.clientX - ghostElement.offsetWidth / 2}px`;
+                            ghostElement.style.top = `${e.clientY - ghostElement.offsetHeight / 2}px`;
                         }
                     });
                 });
 
-                canvas.addEventListener('click', (e) => {
-                    if (!currentPiece) return;
+                document.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'copy';
                     
-                    const rect = canvas.getBoundingClientRect();
-                    const mouseX = e.clientX - rect.left;
-                    const mouseY = e.clientY - rect.top;
-                    
-                    const gridX = Math.floor(mouseX / BLOCK_SIZE);
-                    const gridY = Math.floor(mouseY / BLOCK_SIZE);
-                    
-                    if (!checkCollisionWithBoard(currentPiece.shape, gridX, gridY)) {
-                        currentPiece.pos.x = gridX;
-                        currentPiece.pos.y = gridY;
-                        placePiece();
-                    }
-                });
-                
-                canvas.addEventListener('mousemove', (e) => {
-                    if (!currentPiece) return;
-                    
-                    const rect = canvas.getBoundingClientRect();
-                    const mouseX = e.clientX - rect.left;
-                    const mouseY = e.clientY - rect.top;
-                    
-                    const gridX = Math.floor(mouseX / BLOCK_SIZE);
-                    const gridY = Math.floor(mouseY / BLOCK_SIZE);
-                    
-                    if (!checkCollisionWithBoard(currentPiece.shape, gridX, gridY)) {
-                        currentPiece.pos.x = gridX;
-                        currentPiece.pos.y = gridY;
+                    if (isDragging && currentPiece) {
+                        const rect = canvas.getBoundingClientRect();
+                        const gridX = Math.floor((e.clientX - rect.left) / BLOCK_SIZE);
+                        const gridY = Math.floor((e.clientY - rect.top) / BLOCK_SIZE);
+                        
+                        const maxX = COLS - currentPiece.shape[0].length;
+                        const minY = -currentPiece.shape.length + 1;
+                        const maxY = ROWS - 1;
+                        
+                        currentPiece.pos = {
+                            x: Math.max(0, Math.min(gridX, maxX)),
+                            y: Math.max(minY, Math.min(gridY, maxY))
+                        };
+                        
                         draw();
                     }
                 });
 
-                document.addEventListener('keydown', event => {
-                    if (!gameStarted || gameOver) return;
-                    
-                    if (currentPiece) {
-                        switch(event.keyCode) {
-                            case 37: movePiece(-1); break;
-                            case 39: movePiece(1); break;
-                            case 40: moveDown(); break;
-                            case 38: rotatePiece(); break;
-                            case 32: placePiece(); break;
-                        }
-                    } else {
-                        if (event.keyCode >= 49 && event.keyCode <= 51) {
-                            selectPiece(event.keyCode - 49);
-                        }
+                document.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    if (isDragging && currentPiece) {
+                        placePiece(e.clientX, e.clientY);
                     }
                 });
+
+                // Touch events
+                pieceContainers.forEach((container, index) => {
+                    container.addEventListener('touchstart', (e) => {
+                        if (!gameStarted || gameOver || !availablePieces[index]) return;
+                        
+                        e.preventDefault();
+                        draggedPieceIndex = index;
+                        currentPiece = {
+                            shape: availablePieces[index].shape,
+                            color: availablePieces[index].color,
+                            pos: {x: 0, y: 0}
+                        };
+                        
+                        isDragging = true;
+                        const touch = e.touches[0];
+                        createGhostElement(currentPiece, touch.clientX, touch.clientY);
+                    }, {passive: false});
+                });
+
+                document.addEventListener('touchmove', (e) => {
+                    if (!isDragging || !ghostElement) return;
+                    
+                    e.preventDefault();
+                    const touch = e.touches[0];
+                    ghostElement.style.left = `${touch.clientX - ghostElement.offsetWidth / 2}px`;
+                    ghostElement.style.top = `${touch.clientY - ghostElement.offsetHeight / 2}px`;
+                    
+                    if (currentPiece) {
+                        const rect = canvas.getBoundingClientRect();
+                        const gridX = Math.floor((touch.clientX - rect.left) / BLOCK_SIZE);
+                        const gridY = Math.floor((touch.clientY - rect.top) / BLOCK_SIZE);
+                        
+                        const maxX = COLS - currentPiece.shape[0].length;
+                        const minY = -currentPiece.shape.length + 1;
+                        const maxY = ROWS - 1;
+                        
+                        currentPiece.pos = {
+                            x: Math.max(0, Math.min(gridX, maxX)),
+                            y: Math.max(minY, Math.min(gridY, maxY))
+                        };
+                        
+                        draw();
+                    }
+                }, {passive: false});
+
+                document.addEventListener('touchend', (e) => {
+                    if (!isDragging || !currentPiece) return;
+                    
+                    e.preventDefault();
+                    const touch = e.changedTouches[0];
+                    placePiece(touch.clientX, touch.clientY);
+                }, {passive: false});
             }
 
+            window.addEventListener('resize', handleResize);
             addEventListeners();
             resetGame();
         });
